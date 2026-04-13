@@ -18,6 +18,16 @@ class UserCreate(SQLModel):
     password: str
     birthdate: datetime = None
 
+    @field_validator("username")
+    @classmethod
+    def validate_username_user_create(cls, username:str) -> str:
+        pattern = r'^[a-zA-Z0-9._-]+$'
+        if not re.match(pattern, username) :
+            raise ValueError("Username is invalid.")
+        return username
+
+
+
     @field_validator("password")
     @classmethod
     def validate_password_user_create(cls, password: str) -> str:
