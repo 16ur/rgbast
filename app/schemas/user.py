@@ -41,3 +41,12 @@ class UserCreateResponse(SQLModel):
     firstname: str | None
     lastname: str | None
     birthdate: datetime = None
+
+
+class UserGetResponse(SQLModel):
+    id: int
+    username: str
+    email: str
+    firstname: str | None
+    lastname: str | None
+    birthdate: datetime = None

@@ -10,8 +10,10 @@ from app.schemas.auth import Login, LoginResponse
 from app.core.database import SessionDep
 from pwdlib import PasswordHash
 
+from app.services.user import UserService
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_DAYS = 60
 
 
 class AuthService:
@@ -25,9 +27,9 @@ class AuthService:
         # Team tout à la fois ou vérifications séparées ? A vos claviers !
         result = session.exec(query).first()
         if result and hasher.verify(loginSchema.password, result.password):
-            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_DAYS)
             token = AuthService.create_access_token(
-                data={"sub": result.username + result.email},
+                data={"sub": result.username},
                 expires_delta=access_token_expires,
             )
             return LoginResponse(
@@ -39,18 +41,20 @@ class AuthService:
             )
         return None
 
-    def check_auth(token: str):
+    def check_auth(token: str, session: SessionDep):
         load_dotenv()
+
         secret_key = os.getenv("SECRET_KEY", "key_and_peele")
-        decoded_token = jwt.decode(token, secret_key)
-        return decoded_token
+        decoded_token = jwt.decode(jwt=token, key=secret_key, algorithms=[ALGORITHM])
+        return UserService.get_user_from_username(decoded_token.get("sub"), session)
 
     def create_access_token(data: dict, expires_delta: timedelta | None = None):
         to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
-        else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+        expire = (
+            datetime.now(timezone.utc) + expires_delta
+            if expires_delta
+            else timedelta(days=60)
+        )
         to_encode.update({"exp": expire})
 
         load_dotenv()

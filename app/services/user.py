@@ -1,5 +1,7 @@
+from sqlmodel import select
+
 from app.models.user import User
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, UserGetResponse
 from app.core.database import SessionDep
 from pwdlib import PasswordHash
 
@@ -15,3 +17,8 @@ class UserService:
         session.commit()
         session.refresh(newUser)
         return newUser
+
+    def get_user_from_username(username: str, session: SessionDep):
+        query = select(User).where(User.username == username)
+        user = session.exec(query).first()
+        return UserGetResponse(**user.model_dump())

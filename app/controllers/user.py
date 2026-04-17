@@ -38,3 +38,6 @@ class UserController:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An unexpected error occurred. " + str(e),
             )
+
+    def get_user_from_username_control(username: str, session: SessionDep):
+        return UserService.get_user_from_username(username, session)

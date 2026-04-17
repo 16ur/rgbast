@@ -1,5 +1,4 @@
-from decimal import Decimal
-from sqlmodel import TIMESTAMP, Field, Numeric, SQLModel, text
+from sqlmodel import TIMESTAMP, Field, SQLModel, text
 from datetime import datetime
 
 
@@ -42,12 +41,12 @@ class Palette_Snapshot(SQLModel, table=True):
 # instead of numeric fractional indexing.
 # Each color has a 'position_key' (e.g. "a", "am", "b") which determines its order
 # when sorted lexicographically (ORDER BY position_key).
-# 
+#
 # This allows inserting new colors between any two existing ones by generating
 # a new key that falls between their keys (e.g. between "a" and "b" → "am"),
 # without needing to generate more changes or rebalance positions.
 # Despite this, A balance may be necessary when approaching a extreme case, like 100 characters.
-# 
+#
 # This approach avoids precision issues from numeric division and makes insertions
 # stable and scalable, even with many consecutive inserts between the same elements.
 class Palette_Color(SQLModel, table=True):

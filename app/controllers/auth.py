@@ -31,3 +31,6 @@ class AuthController:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An unexpected error occurred. " + str(e),
             )
+
+    def check_auth_control(token: str, session: SessionDep):
+        return AuthService.check_auth(token, session)
