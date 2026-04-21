@@ -10,11 +10,29 @@ from app.models.palette import (
     Palette_Color,
     Palette_Snapshot,
 )
+from app.models.user import User
 from app.schemas.palette import PaletteCreate, PaletteSnapshotSave
 from app.utils.lexicographic_ranker import LexicographicRanker
 
 
 class PaletteService:
+    @staticmethod
+    def _snapshot_to_commit(snap: Palette_Snapshot, session: SessionDep):
+        colors = PaletteService.get_snapshot_state(snap, session)
+        added, deleted, modified = PaletteService.get_diff_counts(snap.id, session)
+        return {
+            "id": snap.id,
+            "palette_id": snap.palette_id,
+            "parent_snapshot_id": snap.parent_snapshot_id,
+            "branch_id": snap.branch_id,
+            "comment": snap.comment,
+            "created_at": snap.created_at,
+            "palette_colors": [{"hex": c.hex, "label": c.label} for c in colors],
+            "colors_added": added,
+            "colors_deleted": deleted,
+            "colors_modified": modified,
+        }
+
     # Creates a new palette along with its initial snapshot and starting colors.
     def create_palette(paletteSchema: PaletteCreate, user_id: int, session: SessionDep):
         new_palette = Palette(
@@ -51,6 +69,38 @@ class PaletteService:
     def get_palette(palette_id: int, session: SessionDep):
         query = select(Palette).where(Palette.id == palette_id)
         return session.exec(query).first()
+
+    # Retrieves all palettes for a username with the latest main-branch snapshot.
+    def get_palettes_by_username(username: str, session: SessionDep):
+        user = session.exec(select(User).where(User.username == username)).first()
+        if not user:
+            raise ValueError("User not found.")
+
+        palettes = session.exec(
+            select(Palette)
+            .where(Palette.user_id == user.id)
+            .order_by(desc(Palette.created_at), desc(Palette.id))
+        ).all()
+
+        result = []
+        for palette in palettes:
+            latest_snapshot, _ = PaletteService.get_latest_palette_snapshot(
+                palette.id, session, branch_id=None
+            )
+            result.append(
+                {
+                    "id": palette.id,
+                    "title": palette.title,
+                    "created_at": palette.created_at,
+                    "latest_main_snapshot": (
+                        PaletteService._snapshot_to_commit(latest_snapshot, session)
+                        if latest_snapshot
+                        else None
+                    ),
+                }
+            )
+
+        return {"username": username, "palettes": result}
 
     # Reconstructs the active color list for a specific snapshot by resolving past changes.
     def get_snapshot_state(
@@ -167,22 +217,6 @@ class PaletteService:
             .order_by(desc(Palette_Snapshot.created_at))
         ).all()
 
-        def _snapshot_to_commit(snap: Palette_Snapshot):
-            colors = PaletteService.get_snapshot_state(snap, session)
-            added, deleted, modified = PaletteService.get_diff_counts(snap.id, session)
-            return {
-                "id": snap.id,
-                "palette_id": snap.palette_id,
-                "parent_snapshot_id": snap.parent_snapshot_id,
-                "branch_id": snap.branch_id,
-                "comment": snap.comment,
-                "created_at": snap.created_at,
-                "palette_colors": [{"hex": c.hex, "label": c.label} for c in colors],
-                "colors_added": added,
-                "colors_deleted": deleted,
-                "colors_modified": modified,
-            }
-
         branches = session.exec(
             select(Palette_Branch)
             .where(Palette_Branch.palette_id == palette_id)
@@ -190,7 +224,7 @@ class PaletteService:
         ).all()
 
         return {
-            "main": [_snapshot_to_commit(snap) for snap in main_snapshots],
+            "main": [PaletteService._snapshot_to_commit(snap, session) for snap in main_snapshots],
             "branches": [
                 {
                     "id": branch.id,
@@ -198,7 +232,7 @@ class PaletteService:
                     "merged_at": branch.merged_at,
                     "is_merged": branch.merged_at is not None,
                     "snapshots": [
-                        _snapshot_to_commit(snap)
+                        PaletteService._snapshot_to_commit(snap, session)
                         for snap in session.exec(
                             select(Palette_Snapshot)
                             .where(

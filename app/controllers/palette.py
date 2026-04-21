@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 from app.core.database import SessionDep
 from app.schemas.palette import (
+    PaletteByUsernameResponse,
     PaletteBranchMergeResponse,
     PaletteCreate,
     PaletteCreateResponse,
@@ -102,6 +103,20 @@ class PaletteController:
 
         except HTTPException:
             raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+            )
+
+    # Retrieves all palettes for a username with their latest main snapshot.
+    def get_palettes_by_username_control(
+        username: str, session: SessionDep
+    ) -> PaletteByUsernameResponse:
+        try:
+            palettes_data = PaletteService.get_palettes_by_username(username, session)
+            return PaletteByUsernameResponse(**palettes_data)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)

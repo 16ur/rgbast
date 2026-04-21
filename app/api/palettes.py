@@ -3,6 +3,7 @@ from app.core.database import SessionDep
 from app.middlewares.auth import verify_token
 from app.controllers.palette import PaletteController
 from app.schemas.palette import (
+    PaletteByUsernameResponse,
     PaletteBranchMergeResponse,
     PaletteCreate,
     PaletteCreateResponse,
@@ -49,6 +50,15 @@ def save_palette_snapshot_handler(
 )
 def get_palette_history_handler(palette_id: int, session: SessionDep):
     return PaletteController.get_palette_history_control(palette_id, session)
+
+
+@router.get(
+    "/users/{username}/palettes",
+    response_model=PaletteByUsernameResponse,
+    status_code=200,
+)
+def get_palettes_by_username_handler(username: str, session: SessionDep):
+    return PaletteController.get_palettes_by_username_control(username, session)
 
 
 @router.post(

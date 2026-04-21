@@ -98,3 +98,15 @@ class PaletteBranchMergeResponse(SQLModel):
     colors_added: int = Field(default=0)
     colors_deleted: int = Field(default=0)
     colors_modified: int = Field(default=0)
+
+
+class PaletteByUsernameItemResponse(SQLModel):
+    id: int
+    title: str
+    created_at: datetime
+    latest_main_snapshot: PaletteCommitResponse | None = Field(default=None)
+
+
+class PaletteByUsernameResponse(SQLModel):
+    username: str
+    palettes: list[PaletteByUsernameItemResponse] = Field(default=[])
