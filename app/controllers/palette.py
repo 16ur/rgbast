@@ -1,6 +1,7 @@
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 from app.core.database import SessionDep
+from app.models.user import User
 from app.schemas.palette import (
     PaletteByUsernameResponse,
     PaletteBranchMergeResponse,
@@ -97,7 +98,11 @@ class PaletteController:
             if not palette:
                 raise HTTPException(status_code=404, detail="Palette not found.")
 
-            history_data = PaletteService.get_palette_history(palette_id, session)
+            owner = session.get(User, palette.user_id)
+            if not owner:
+                raise HTTPException(status_code=404, detail="Palette owner not found.")
+
+            history_data = PaletteService.get_palette_history(palette_id, session, owner.username, palette.title)
 
             return PaletteHistoryGraphResponse(**history_data)
 

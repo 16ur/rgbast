@@ -82,6 +82,8 @@ class PaletteBranchHistoryResponse(SQLModel):
 
 # The overall repository history
 class PaletteHistoryGraphResponse(SQLModel):
+    owner_username: str
+    title: str
     main: list[PaletteCommitResponse] = Field(default=[])
     branches: list[PaletteBranchHistoryResponse] = Field(default=[])
 

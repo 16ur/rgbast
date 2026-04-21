@@ -1,4 +1,5 @@
 from datetime import timezone, datetime
+from collections import defaultdict
 from sqlmodel import desc, select
 import difflib
 
@@ -209,7 +210,7 @@ class PaletteService:
         return added, deleted, modified
 
     # Builds a graph of a palette's history, grouping snapshots by explicit branches.
-    def get_palette_history(palette_id: int, session: SessionDep):
+    def get_palette_history(palette_id: int, session: SessionDep, owner_username: str, title: str):
         main_snapshots = session.exec(
             select(Palette_Snapshot)
             .where(Palette_Snapshot.palette_id == palette_id)
@@ -224,6 +225,8 @@ class PaletteService:
         ).all()
 
         return {
+            "owner_username": owner_username,
+            "title": title,
             "main": [PaletteService._snapshot_to_commit(snap, session) for snap in main_snapshots],
             "branches": [
                 {
@@ -304,6 +307,8 @@ class PaletteService:
         new_colors_final = [None] * len(new_inputs)
         changes_to_record = []
         replacements_map = {}
+        pending_deletions: list[Palette_Color] = []
+        pending_deletions_by_identity: dict[str, list[int]] = defaultdict(list)
 
         for tag, i1, i2, j1, j2 in opcodes:
             if tag == "equal":
@@ -312,14 +317,7 @@ class PaletteService:
 
             elif tag == "delete":
                 for old_idx in range(i1, i2):
-                    changes_to_record.append(
-                        Palette_Change(
-                            previous_snapshot_id=previous_snapshot.id,
-                            new_snapshot_id=new_snapshot.id,
-                            previous_color_id=previous_colors[old_idx].id,
-                            new_color_id=None,
-                        )
-                    )
+                    pending_deletions.append(previous_colors[old_idx])
 
             elif tag == "replace":
                 old_indices = list(range(i1, i2))
@@ -332,14 +330,10 @@ class PaletteService:
                         ].id
 
                     elif k < len(old_indices):
-                        changes_to_record.append(
-                            Palette_Change(
-                                previous_snapshot_id=previous_snapshot.id,
-                                new_snapshot_id=new_snapshot.id,
-                                previous_color_id=previous_colors[old_indices[k]].id,
-                                new_color_id=None,
-                            )
-                        )
+                        pending_deletions.append(previous_colors[old_indices[k]])
+
+        for old_color in pending_deletions:
+            pending_deletions_by_identity[_get_identity(old_color)].append(old_color.id)
 
         for tag, i1, i2, j1, j2 in opcodes:
             if tag == "insert" or tag == "replace":
@@ -380,6 +374,12 @@ class PaletteService:
                     new_colors_final[new_idx] = new_c
 
                     prev_color_id = replacements_map.get(new_idx, None)
+                    if prev_color_id is None:
+                        identity_key = _get_identity(req_color)
+                        if pending_deletions_by_identity[identity_key]:
+                            prev_color_id = pending_deletions_by_identity[
+                                identity_key
+                            ].pop(0)
 
                     changes_to_record.append(
                         Palette_Change(
@@ -389,6 +389,17 @@ class PaletteService:
                             new_color_id=new_c.id,
                         )
                     )
+
+        for remaining_prev_ids in pending_deletions_by_identity.values():
+            for prev_id in remaining_prev_ids:
+                changes_to_record.append(
+                    Palette_Change(
+                        previous_snapshot_id=previous_snapshot.id,
+                        new_snapshot_id=new_snapshot.id,
+                        previous_color_id=prev_id,
+                        new_color_id=None,
+                    )
+                )
 
         for change in changes_to_record:
             session.add(change)

@@ -9,5 +9,4 @@ class User(SQLModel, table=True):
     firstname: str | None = Field(default=None)
     lastname: str | None = Field(default=None, max_length=50)
     password: str = Field(default=None)
-    birthdate: datetime = Field(default=None)
-    # birthdate: datetime = Field(sa_column=Column(DateTime(timezone=True),nullable=True))
+    birthdate: datetime | None = Field(default=None)
